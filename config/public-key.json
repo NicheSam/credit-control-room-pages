@@ -1,0 +1,12 @@
+{
+  "version": 1,
+  "kid": "ccr-p256-2026-08",
+  "public_jwk": {
+    "kty": "EC",
+    "crv": "P-256",
+    "x": "oPJhri4-_OQPBlLcIbmjZjbNjDdTOIHfx_2MQPS3KJI",
+    "y": "-2VoiTNr86OzREWKexPQvtOMHiDDbf7RSSt_kn4xDPg",
+    "ext": true,
+    "key_ops": []
+  }
+}
