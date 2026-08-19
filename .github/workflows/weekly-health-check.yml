@@ -1,0 +1,18 @@
+name: Validate encrypted dashboard
+
+on:
+  schedule:
+    - cron: "17 19 * * 0"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Validate public deployment payload
+        run: |
+          node -e "const fs=require('fs');const e=JSON.parse(fs.readFileSync('data/dashboard.enc.json','utf8'));const p=JSON.parse(fs.readFileSync('config/public-key.json','utf8'));if(e.version!==2||!e.ciphertext||!p.public_jwk)process.exit(1);console.log('public encrypted deployment looks healthy')"
