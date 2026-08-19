@@ -1,11 +1,8 @@
 (() => {
   const PIN_HASH = "47601cb1d76d1fd147affa48a4ae450bc9934e7e5a5aa485bab69bd3d0bc40b9";
-  const fetchText = async (url, optional=false) => {
+  const fetchText = async url => {
     const r = await fetch(url, {cache:"no-store"});
-    if (!r.ok) {
-      if (optional && r.status === 404) return null;
-      throw new Error(`載入失敗：${url} (${r.status})`);
-    }
+    if (!r.ok) throw new Error(`載入失敗：${url} (${r.status})`);
     return r.text();
   };
   const gunzipBase64Text = async b64 => {
@@ -18,23 +15,11 @@
   const decodeJson = async b64 => JSON.parse(await gunzipBase64Text(b64));
 
   async function loadPublicPayload(){
-    const baseText=await fetchText("./data/base_snapshot.b64?ts="+Date.now(),true);
-    if(!baseText) throw new Error("Dashboard 尚未完成第一次資料初始化。請先上傳 data/base_snapshot.b64。");
-    const payload=await decodeJson(baseText);
-    const updateIndexText=await fetchText("./data/updates/index.json?ts="+Date.now(),true);
-    if(!updateIndexText) return payload;
-    const ui=JSON.parse(updateIndexText);
-    if(ui.meta){
-      const metaText=await fetchText(`./data/updates/${ui.meta}?ts=${Date.now()}`,true);
-      if(metaText){const meta=await decodeJson(metaText);payload.generated_at=meta.generated_at||payload.generated_at;payload.monthly_summary=meta.monthly_summary||payload.monthly_summary;payload.ai_monthly_summary=meta.ai_monthly_summary||payload.ai_monthly_summary;}
-    }
-    for(const m of (ui.months||[])){
-      const mt=await fetchText(`./data/updates/months/${m}.b64?ts=${Date.now()}`,true);
-      if(!mt) continue;
-      const rows=await decodeJson(mt);
-      payload.dashboard_fact=(payload.dashboard_fact||[]).filter(r=>String(r["分析月份"]||r["消費年月"]||r["帳單年月"]||"")!==m).concat(rows);
-    }
-    return payload;
+    const idx=await fetch("./data/index.json?ts="+Date.now(),{cache:"no-store"}).then(r=>{if(!r.ok)throw new Error("Dashboard 資料索引尚未完成");return r.json();});
+    const chunks=idx.chunks||[];
+    if(!chunks.length)throw new Error("Dashboard 資料尚未初始化");
+    const arrays=await Promise.all(chunks.map(async c=>decodeJson(await fetchText(`./data/chunks/${c}.b64?ts=${Date.now()}`))));
+    return {schema:idx.schema,generated_at:idx.generated_at,dashboard_fact:arrays.flat(),monthly_summary:idx.monthly_summary||[],ai_monthly_summary:idx.ai_monthly_summary||[]};
   }
 
   function patchApp(appCode){
@@ -79,13 +64,11 @@ function buildOptions(){`;
     if(q(".brand small"))q(".brand small").textContent="信用卡帳務控制台";
     if(q("#noticeBox"))q("#noticeBox").textContent="Dashboard 正在載入去識別化資料。";
   }
+
   const boot=async()=>{applySimpleCopy();try{
     window.__CCR_LOAD_PUBLIC_PAYLOAD__=loadPublicPayload;
     const ts=Date.now();
-    const [styleB64,...appParts]=await Promise.all([
-      fetchText("./style.css.gz.b64?ts="+ts),
-      ...[0,1,2,3,4,5].map(i=>fetchText(`./app-${i}.b64?ts=${ts}`))
-    ]);
+    const [styleB64,...appParts]=await Promise.all([fetchText("./style.css.gz.b64?ts="+ts),...[0,1,2,3,4,5].map(i=>fetchText(`./app-${i}.b64?ts=${ts}`))]);
     const [css,appCodeRaw]=await Promise.all([gunzipBase64Text(styleB64),gunzipBase64Text(appParts.join(""))]);
     const style=document.createElement("style");style.textContent=css;document.head.appendChild(style);
     new Function(`${patchApp(appCodeRaw)}\n//# sourceURL=credit-control-room-app.js`)();
