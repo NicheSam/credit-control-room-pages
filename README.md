@@ -1,25 +1,32 @@
 # Credit Control Room Pages
 
-Public deployment repository for Credit Control Room.
+個人信用卡帳務 Dashboard 的 GitHub Pages 部署庫。
 
-## Privacy
+## 使用方式
 
-- No plaintext transaction data is stored in this repository.
-- `data/dashboard.enc.json` / verified `parts/data/*.txt` are encrypted with ECDH P-256 + HKDF-SHA256 + AES-256-GCM.
-- `config/public-key.json` contains only the public encryption key.
-- The private unlock key is never stored in GitHub.
-- The private source/maintenance repository remains separate.
+- 開啟網站後輸入 **6 位數 PIN**。
+- PIN 只是避免誤開頁面的簡易門檻，不是銀行級身份驗證。
+- Public repo 裡的帳務資料會在發布前先做去識別化。
 
-## Initial bootstrap
+## Public repo 不發布的內容
 
-1. Upload the generated encrypted baseline as `data/dashboard.enc.json`.
-2. Keep `parts/manifest.json` at `mode: base`.
-3. Repository Settings → Pages → Source → GitHub Actions.
-4. The deployment workflow publishes the site.
-5. Unlocking happens only in the browser with the private `CCR2.…` token.
+- Gmail 信件 ID
+- PDF / 附件檔名
+- Google Drive ID
+- 原始交易唯一鍵
+- 原始資料來源路徑
+- 已分類交易中可能帶電話、會員編號或請款代碼的原始名稱
 
-## Weekly GPT publishing
+已分類交易對外只保留標準化商店名稱；待確認名稱中的長數字與識別碼會遮罩。
 
-After the initial baseline, weekly GPT updates use verified 5,000-character encrypted parts. `parts/manifest.json` switches to `mode: parts` only after every part passes byte-size and Git blob SHA verification. A partial publishing failure therefore cannot replace the last known-good snapshot.
+## 每週更新
 
-See `docs/WEEKLY_UPDATE_PUBLIC.md` for the full procedure.
+ChatGPT 每週先完成 Google Sheet 帳務整理，再同步：
+
+1. 計算月度事實指標。
+2. 產生 GPT 月報並 append 到 `ai_monthly_summary`。
+3. 將需發布的資料去識別化。
+4. 只更新本月或有異動月份的 `data/updates/months/*.b64` 與壓縮後的 metadata。
+5. GitHub Pages 自動重新部署。
+
+不使用外部 OpenAI API，也不需要公私鑰或恢復碼。
