@@ -1,0 +1,6 @@
+(() => {
+  const fetchText=async url=>{const r=await fetch(url,{cache:"no-store"});if(!r.ok)throw new Error(`載入失敗：${url} (${r.status})`);return r.text();};
+  const gunzipBase64=async b64=>{const bin=atob(b64);const bytes=new Uint8Array(bin.length);for(let i=0;i<bin.length;i++)bytes[i]=bin.charCodeAt(i);if(!("DecompressionStream" in window))throw new Error("此瀏覽器不支援 gzip 解壓縮，請使用最新版 Chrome / Edge / Safari。");const stream=new Blob([bytes]).stream().pipeThrough(new DecompressionStream("gzip"));return new Response(stream).text();};
+  const boot=async()=>{try{const [styleB64,appB64]=await Promise.all([fetchText("./style.css.gz.b64?ts="+Date.now()),fetchText("./app.js.gz.b64?ts="+Date.now())]);const [css,appCode]=await Promise.all([gunzipBase64(styleB64),gunzipBase64(appB64)]);const style=document.createElement("style");style.textContent=css;document.head.appendChild(style);new Function(`${appCode}\n//# sourceURL=credit-control-room-app.js`)();}catch(err){console.error(err);document.body.innerHTML=`<div style="max-width:720px;margin:80px auto;padding:24px;font-family:system-ui;color:#fff;background:#0c1322;border:1px solid #334155;border-radius:18px"><h2>Dashboard 載入失敗</h2><p style="color:#cbd5e1;line-height:1.7">${String(err.message||err)}</p></div>`;}};
+  boot();
+})();
