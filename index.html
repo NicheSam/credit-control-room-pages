@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Credit Control Room Secure</title>
+
+</head>
+<body>
+<div class="lockScreen" id="lockScreen" role="dialog" aria-modal="true" aria-labelledby="lockTitle">
+  <div class="lockCard">
+    <div class="lockBrand"><div class="logo"></div><div><h1>Credit Control Room</h1><small>Secure Pages</small></div></div>
+    <h2 id="lockTitle">解鎖帳務資料</h2>
+    <p>網站程式與公鑰可公開存放在 GitHub；信用卡交易資料以 <b>ECDH + AES-256-GCM</b> 加密。私鑰不儲存在 repository。</p>
+    <label class="lockLabel" for="unlockPassphrase">解鎖金鑰</label>
+    <div class="lockInputRow"><input id="unlockPassphrase" type="password" autocomplete="current-password" spellcheck="false" placeholder="CCR2.…"><button id="togglePassphrase" class="lockMiniBtn" type="button">顯示</button></div>
+    <button id="unlockBtn" class="lockPrimary" type="button">解鎖 Dashboard</button>
+    <div id="unlockStatus" class="lockStatus">解鎖運算只在你的瀏覽器內進行。</div>
+    <div class="lockSecurity">ECDH P-256 → HKDF-SHA256 → AES-256-GCM。重新整理頁面後會再次鎖定。</div>
+  </div>
+</div>
+
+<div class="app">
+<aside>
+<div class="brand"><div class="logo"></div><div><h1>Credit Control Room</h1><small>信用卡帳務控制台｜Secure Pages</small></div></div>
+<div class="dataPanel" id="dataPanel"><div class="dataHead" id="dataHead"><b>加密資料</b><span id="dataPanelStatus">尚未解鎖</span></div><div class="dataBody"><label class="uploadLabel">臨時上傳 dashboard_fact CSV / JSON<input id="fileInput" type="file" accept=".csv,.json,text/csv,application/json" /></label><div class="hint">GitHub 只保存 AES-GCM 密文。臨時上傳只存在此分頁記憶體，重新整理即清除。</div><div style="display:flex;gap:8px;margin-top:10px"><button class="btn secondary" id="lockNowBtn">立即鎖定</button><button class="btn secondary" id="helpBtn">欄位</button></div></div></div>
+<div class="navGroup">分析</div><div class="nav"><button data-view="overview" class="active">月份總覽 <span>⌁</span></button><button data-view="ai">AI 怎麼看 <span>✦</span></button><button data-view="compare">月度比較 <span>↔</span></button><button data-view="category">分類分析 <span>▦</span></button><button data-view="merchant">商店分析 <span>⌕</span></button><button data-view="fixed">固定支出 <span>◆</span></button><button data-view="watchlist">Watchlist <span>◎</span></button></div>
+<div class="navGroup">維護</div><div class="nav"><button data-view="review">待確認商店 <span>!</span></button><button data-view="rules">規則建議 <span>＋</span></button><button data-view="transactions">交易查詢 <span>≡</span></button><button data-view="quality">資料品質 <span>✓</span></button></div>
+<div class="sideCard"><h3>設計邏輯</h3><div class="mini-note">首頁是月報＋分析摘要。<br>待確認以商店彙整。<br>分類與商店先排行再下鑽。<br>資料品質獨立稽核。</div></div>
+</aside>
+<main>
+<div class="topbar"><div class="title"><h2 id="pageTitle">月份總覽</h2><p id="pageDesc">選定月份 → 比近 3 月平均 → 看異常提醒、分類與商店。</p></div><div class="status" id="status">載入中</div></div>
+<div class="notice" id="noticeBox">帳務資料已加密儲存在 GitHub Pages；解鎖後才會在瀏覽器記憶體中使用。</div>
+<div class="periodShell" id="periodShell">
+  <div class="periodNav">
+    <button class="periodArrow" id="prevMonthBtn" title="上一個有資料的月份" aria-label="上一個月份">‹</button>
+    <button class="periodButton" id="periodButton" aria-expanded="false"><span id="selectedPeriodLabel">選擇月份</span><span>⌄</span></button>
+    <button class="periodArrow" id="nextMonthBtn" title="下一個有資料的月份" aria-label="下一個月份">›</button>
+    <button class="btn latestBtn" id="jumpLatestBtn">最新月份</button>
+    <div class="compareWrap"><span class="controlLabel">比較</span><select id="compareMode"><option value="avg3">近 3 個月平均</option><option value="prev">上個月</option><option value="none">不比較</option></select></div>
+  </div>
+  <div class="periodPopover" id="periodPopover">
+    <div class="yearNav">
+      <button class="yearBtn" id="prevYearBtn" aria-label="上一年">‹</button>
+      <strong id="yearLabel">年份</strong>
+      <button class="yearBtn" id="nextYearBtn" aria-label="下一年">›</button>
+    </div>
+    <div class="monthGrid" id="monthGrid"></div>
+    <div class="periodHint">灰色月份代表目前沒有資料。鍵盤 ← / → 也可切換月份。</div>
+  </div>
+</div>
+<div class="secondaryControls"><select id="cardFilter"></select><select id="categoryFilter"></select><input id="searchInput" placeholder="搜尋商店、分類、原始名稱…" /><button class="btn secondary" id="quickReview">待確認</button><button class="btn secondary" id="quickLarge">大額</button><button class="btn secondary" id="quickFixed">固定</button><button class="btn secondary" id="resetBtn">重設</button></div>
+
+<section class="view active" id="view-overview"><div class="grid kpis" id="kpiGrid"></div><div class="grid cols-2" style="margin-top:16px"><div class="card monthlyBriefing"><div class="briefTop"><h3>月度分析</h3><span class="coverageBadge" id="coverageBadge">資料狀態</span></div><div class="briefHeadline" id="briefHeadline"></div><div class="briefLead" id="briefLead"></div><div class="analysisList" id="narrative"></div><div class="recTitle">建議查看</div><div class="recList" id="recommendations"></div><div class="briefFoot" id="briefFoot"></div></div><div class="card"><h3>每月實際消費趨勢</h3><div class="sub">點端點切換月份，灰線為比較基準。</div><div id="monthlyChart" class="chart"></div></div></div><div class="grid cols-3" style="margin-top:16px"><div class="card"><h3>分類 Top 5</h3><div id="categoryRankList"></div></div><div class="card"><h3>商店 Top 5</h3><div id="merchantRankList"></div></div><div class="card"><h3>大額交易 Top 5</h3><div id="largeTxList"></div></div></div></section>
+
+<section class="view" id="view-ai">
+  <div class="aiHero">
+    <div>
+      <div class="aiTitleRow">
+        <h3 id="aiHeadline">正在分析…</h3>
+        <span id="aiConfidence" class="aiConfidence">資料評估中</span>
+      </div>
+      <div id="aiLead" class="aiLead"></div>
+    </div>
+    <div class="aiScope" id="aiScope"></div>
+  </div>
+
+  <div class="grid kpis aiKpis" id="aiKpis"></div>
+
+  <div class="grid cols-2 aiMainGrid" style="margin-top:16px">
+    <div class="card aiReportCard">
+      <div class="aiSectionHead">
+        <div>
+          <h3>AI 月度分析</h3>
+          <div class="sub">先給結論，再說明是哪些資料造成。</div>
+        </div>
+        <span class="aiMode">規則式分析｜不送外部 API</span>
+      </div>
+      <div id="aiReport" class="aiReport"></div>
+    </div>
+
+    <div class="card">
+      <h3>相較近 3 月平均：支出驅動</h3>
+      <div class="sub">正值把本月推高，負值代表本月相對減少。</div>
+      <div id="aiDrivers" class="driverList"></div>
+    </div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:16px">
+    <div class="card">
+      <h3>如果排除疑似一次性大額</h3>
+      <div class="sub">這是反事實分析，不代表這些交易一定不重要；只用來區分「日常成本」與「單次大額」。</div>
+      <div id="aiCounterfactual" class="counterfactual"></div>
+    </div>
+    <div class="card">
+      <h3>異常與值得注意</h3>
+      <div class="sub">同時列出「需要看」與「目前正常」，避免每個變化都變成警報。</div>
+      <div id="aiSignals" class="signalGrid"></div>
+    </div>
+  </div>
+
+  <div class="grid cols-2" style="margin-top:16px">
+    <div class="card">
+      <h3>AI 建議</h3>
+      <div class="sub">只提供可以直接在這個 Dashboard 執行或驗證的動作。</div>
+      <div id="aiRecommendations" class="recommendationList"></div>
+    </div>
+    <div class="card">
+      <details class="aiBasis" open>
+        <summary>分析依據</summary>
+        <div id="aiBasis"></div>
+      </details>
+    </div>
+  </div>
+</section>
+
+<section class="view" id="view-compare"><div class="grid cols-2"><div class="card"><h3>全部月份趨勢</h3><div id="compareMonthlyChart" class="chart"></div></div><div class="card"><h3>月份 KPI 比較</h3><div id="monthCompareTable" class="table-wrap"></div></div></div><div class="card" style="margin-top:16px"><h3>分類 × 月份矩陣</h3><div class="sub">底部色條以「同一分類」近 10 個月的相對高低計算；橘色代表明顯高於該分類月均，紅色代表極端高值。</div><div class="matrixLegend"><span><i class="legendSwatch legendNormal"></i>一般相對高低</span><span><i class="legendSwatch legendHot"></i>突出月份</span></div><div id="categoryMonthMatrix" class="table-wrap"></div></div></section>
+<section class="view" id="view-category">
+<div id="categorySummary" class="categorySummary"></div>
+<div class="split">
+  <div class="card"><h3>分類排行</h3><div class="panelPurpose">用途：先判斷本月哪些分類占比最高；點分類後，右側與下方內容會一起切換。</div><div id="categoryFullRank"></div></div>
+  <div class="card"><h3 id="categoryTrendTitle">分類跨月趨勢</h3><div class="panelPurpose">用途：看這個分類是長期常態、近期增加，還是單月一次性偏高。</div><div id="categoryTrendChart" class="chart"></div></div>
+</div>
+<div class="grid cols-2" style="margin-top:16px">
+  <div class="card"><h3>主要商店</h3><div class="panelPurpose">用途：解釋這個分類的錢主要花在哪裡。依本月累計金額由高到低排序。</div><div id="categoryMerchantTable" class="table-wrap"></div></div>
+  <div class="card"><h3 id="categoryTransactionsTitle">本月主要交易</h3><div class="panelPurpose" id="categoryTransactionsPurpose">用途：找出拉高這個分類的具體交易。只顯示本月金額較高的交易，不拿來做分類維護。</div><div id="categoryTransactions" class="table-wrap"></div></div>
+</div>
+</section>
+<section class="view" id="view-merchant"><div class="card merchantScope"><strong>先選分類</strong><select id="merchantCategorySelect"></select><div class="merchantScopeInfo" id="merchantScopeInfo">選定分類後，只比較該分類內的商店；預設隱藏只有一筆且金額不高的零散商店。</div><button class="btn secondary" id="merchantToggleAll">顯示全部</button></div><div id="merchantEmpty" class="merchantEmpty"><b>先選擇一個分類</b>商店分析不再把所有商店混在一起。請先選「交通、飲食、購物…」等分類，再看該分類裡的主要商店。</div><div id="merchantContent" style="display:none"><div class="split"><div class="card"><h3 id="merchantRankHeading">分類內主要商店</h3><div class="rankOrderNote">排序規則：分類內累計消費金額，高 → 低</div><div id="merchantRankTable" class="table-wrap"></div></div><div class="card"><h3 id="merchantTrendTitle">商店跨月趨勢</h3><div id="merchantTrendChart" class="chart"></div></div></div><div class="card" style="margin-top:16px"><h3>商店交易</h3><div class="txSortBar"><span class="sortHint">同一標準商店的交易明細；預設依日期新→舊。</span><select id="merchantTxSort"><option value="date">日期：新 → 舊</option><option value="amount">金額：高 → 低</option></select></div><div id="merchantTransactions" class="table-wrap"></div></div></div></section>
+<section class="view" id="view-fixed"><div class="grid cols-2"><div class="card"><h3>固定支出 / 訂閱排行</h3><div id="fixedRankTable" class="table-wrap"></div></div><div class="card"><h3>固定支出跨月趨勢</h3><div id="fixedTrendChart" class="chart"></div></div></div><div class="card" style="margin-top:16px"><h3>固定支出交易</h3><div id="fixedTransactions" class="table-wrap"></div></div></section>
+<section class="view" id="view-watchlist">
+  <div class="card watchIntro">
+    <div>
+      <h3>本月消費分佈 Top 10</h3>
+      <div class="sub">依選定月份的實際消費金額排序。這頁不套用「分類」全域篩選，避免自己把 Top 10 篩掉；卡片、搜尋與其他快速篩選仍可使用。</div>
+    </div>
+    <div class="watchTotal" id="watchTotal"></div>
+  </div>
+  <div class="watchGrid top10" id="watchGrid"></div>
+  <div class="grid cols-2" style="margin-top:16px">
+    <div class="card">
+      <h3 id="watchTrendTitle">分類跨月趨勢</h3>
+      <div class="sub" id="watchTrendSub">點上方任一分類查看。</div>
+      <div id="watchTrendChart" class="chart"></div>
+    </div>
+    <div class="card">
+      <h3 id="watchBreakdownTitle">本月組成</h3>
+      <div class="sub">先看子分類，再看哪些商店貢獻最多。</div>
+      <div id="watchBreakdown" class="table-wrap"></div>
+    </div>
+  </div>
+</section>
+<section class="view" id="view-review"><div class="grid kpis" id="reviewKpis"></div><div class="split" style="margin-top:16px"><div class="card"><h3>待確認商店彙整</h3><div class="sub">先處理商店，不是一筆一筆看交易。</div><div id="reviewMerchantTable" class="table-wrap"></div></div><div class="card"><h3 id="reviewDetailTitle">商店交易明細</h3><div id="reviewDetailTable" class="table-wrap"></div></div></div></section>
+<section class="view" id="view-rules"><div class="split"><div class="card"><h3>待建立規則候選</h3><div id="ruleCandidateTable" class="table-wrap"></div></div><div class="card"><h3>規則列建議</h3><div class="sub">複製後貼到 merchant_rules，第一階段先不自動寫回。</div><div id="ruleSuggestion" class="ruleBox"></div></div></div></section>
+<section class="view" id="view-transactions"><div class="card"><h3>交易查詢</h3><div class="sub">支援搜尋、快速篩選、大額、待確認、固定支出。預設顯示 80 筆。</div><div id="allTransactionsTable" class="table-wrap"></div></div></section>
+<section class="view" id="view-quality"><div class="grid kpis" id="qualityKpis"></div><div class="grid cols-2" style="margin-top:16px"><div class="card"><h3>帳單覆蓋狀態</h3><div id="billCoverageTable" class="table-wrap"></div></div><div class="card"><h3>資料風險</h3><div id="qualityAlerts" class="alerts"></div></div></div><div class="card" style="margin-top:16px"><h3>匯入摘要 monthly_summary</h3><div id="monthlySummaryTable" class="table-wrap"></div></div></section>
+</main></div>
+
+<script src="./loader.js"></script></body></html>
