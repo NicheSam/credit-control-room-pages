@@ -1,4 +1,4 @@
-name: Validate encrypted dashboard
+name: Validate public dashboard data
 
 on:
   schedule:
@@ -13,15 +13,21 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
-      - name: Validate public deployment payload
+      - name: Validate deidentified snapshot
         run: |
           node <<'NODE'
           const fs = require('fs');
-          const manifest = JSON.parse(fs.readFileSync('parts/manifest.json','utf8'));
-          let joined = '';
-          for (let i = 0; i < manifest.data; i++) joined += fs.readFileSync(`parts/data/${String(i).padStart(2,'0')}.txt`, 'utf8');
-          const e = JSON.parse(joined);
-          const p = JSON.parse(fs.readFileSync('config/public-key.json','utf8'));
-          if (e.version !== 2 || !e.ciphertext || !e.ephemeral_public_jwk || !p.public_jwk || e.recipient?.kid !== p.kid) process.exit(1);
-          console.log(`public encrypted deployment healthy: ${manifest.data} parts`);
+          const zlib = require('zlib');
+          const idx = JSON.parse(fs.readFileSync('data/index.json','utf8'));
+          let total = 0;
+          for (const c of idx.chunks || []) {
+            const p = `data/chunks/${c}.b64`;
+            if (!fs.existsSync(p)) throw new Error(`missing ${p}`);
+            const rows = JSON.parse(zlib.gunzipSync(Buffer.from(fs.readFileSync(p,'utf8').trim(),'base64')).toString('utf8'));
+            if (!Array.isArray(rows)) throw new Error(`${c} is invalid`);
+            total += rows.length;
+          }
+          const expected = Object.values(idx.counts || {}).reduce((a,b)=>a+Number(b||0),0);
+          if (total !== expected) throw new Error(`row count mismatch: ${total} !== ${expected}`);
+          console.log(`public dashboard healthy: ${total} rows`);
           NODE
