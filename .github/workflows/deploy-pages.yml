@@ -23,9 +23,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Basic encrypted-payload validation
+      - name: Validate chunked encrypted payload
         run: |
-          node -e "const fs=require('fs');const e=JSON.parse(fs.readFileSync('data/dashboard.enc.json','utf8'));if(e.version!==2||!e.ciphertext||!e.ephemeral_public_jwk)process.exit(1);console.log('encrypted payload OK')"
+          node <<'NODE'
+          const fs = require('fs');
+          const manifest = JSON.parse(fs.readFileSync('parts/manifest.json','utf8'));
+          let joined = '';
+          for (let i = 0; i < manifest.data; i++) {
+            joined += fs.readFileSync(`parts/data/${String(i).padStart(2,'0')}.txt`, 'utf8');
+          }
+          const e = JSON.parse(joined);
+          if (e.version !== 2 || !e.ciphertext || !e.ephemeral_public_jwk || e.recipient?.kid !== 'ccr-p256-2026-08') process.exit(1);
+          console.log(`encrypted payload OK: ${manifest.data} parts`);
+          NODE
       - name: Setup Pages
         uses: actions/configure-pages@v5
       - name: Upload Pages artifact
