@@ -1,0 +1,1 @@
+此資料夾只允許存放**加密後**的 Dashboard 快照。初始檔名固定為 `dashboard.enc.json`。禁止提交任何帳務明文 JSON / CSV。
