@@ -1,4 +1,6 @@
 {
-  "data": 5,
-  "generated_at": "2026-08-19T04:25:46.021337Z"
+  "mode": "base",
+  "data": 0,
+  "generated_at": "2026-08-19T04:25:46.021337Z",
+  "note": "Initial deployment uses data/dashboard.enc.json. Weekly GPT may switch mode to parts only after every encrypted part is verified."
 }
