@@ -23,18 +23,26 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-      - name: Validate chunked encrypted payload
+      - name: Validate encrypted payload when present
         run: |
           node <<'NODE'
           const fs = require('fs');
           const manifest = JSON.parse(fs.readFileSync('parts/manifest.json','utf8'));
-          let joined = '';
-          for (let i = 0; i < manifest.data; i++) {
-            joined += fs.readFileSync(`parts/data/${String(i).padStart(2,'0')}.txt`, 'utf8');
+          let text = null;
+          if (manifest.mode === 'parts') {
+            let joined = '';
+            for (let i = 0; i < Number(manifest.data || 0); i++) joined += fs.readFileSync(`parts/data/${String(i).padStart(2,'0')}.txt`, 'utf8');
+            text = joined;
+          } else if (fs.existsSync('data/dashboard.enc.json')) {
+            text = fs.readFileSync('data/dashboard.enc.json','utf8');
           }
-          const e = JSON.parse(joined);
+          if (!text) {
+            console.log('Initial encrypted base snapshot not uploaded yet; deploying shell only.');
+            process.exit(0);
+          }
+          const e = JSON.parse(text);
           if (e.version !== 2 || !e.ciphertext || !e.ephemeral_public_jwk || e.recipient?.kid !== 'ccr-p256-2026-08') process.exit(1);
-          console.log(`encrypted payload OK: ${manifest.data} parts`);
+          console.log(`encrypted payload OK (${manifest.mode || 'base'})`);
           NODE
       - name: Setup Pages
         uses: actions/configure-pages@v5
